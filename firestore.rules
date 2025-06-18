@@ -1,0 +1,158 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    
+    // Articles Collection
+    match /articles/{articleId} {
+      // Public read access to published articles
+      allow read: if resource.data.status == 'published';
+      
+      // Only authenticated users can create articles
+      allow create: if request.auth != null
+        && validateArticle(request.resource.data);
+      
+      // Only article author or admin can update/delete
+      allow update, delete: if request.auth != null
+        && (resource.data.author.id == request.auth.uid 
+            || getUserRole(request.auth.uid) == 'admin');
+    }
+    
+    // Classifieds Collection
+    match /classifieds/{classifiedId} {
+      // Public read access to active classifieds
+      allow read: if resource.data.status == 'active'
+        && resource.data.expiresAt > request.time;
+      
+      // Authenticated users can create classifieds
+      allow create: if request.auth != null
+        && validateClassified(request.resource.data)
+        && request.resource.data.userId == request.auth.uid;
+      
+      // Only classified owner or admin can update/delete
+      allow update, delete: if request.auth != null
+        && (resource.data.userId == request.auth.uid 
+            || getUserRole(request.auth.uid) == 'admin');
+    }
+    
+    // Advertisements Collection
+    match /advertisements/{adId} {
+      // Public read access to active advertisements
+      allow read: if resource.data.status == 'active'
+        && resource.data.startDate <= request.time
+        && resource.data.endDate >= request.time;
+      
+      // Only admins can manage advertisements
+      allow create, update, delete: if request.auth != null
+        && getUserRole(request.auth.uid) == 'admin';
+    }
+    
+    // Categories Collection
+    match /categories/{categoryId} {
+      // Public read access
+      allow read: if true;
+      
+      // Only admins can manage categories
+      allow create, update, delete: if request.auth != null
+        && getUserRole(request.auth.uid) == 'admin';
+    }
+    
+    // Newsletter Collection
+    match /newsletter/{subscriberId} {
+      // Users can only create (subscribe)
+      allow create: if request.auth != null
+        && validateEmail(request.resource.data.email);
+      
+      // Users can update their own subscription
+      allow update: if request.auth != null
+        && resource.data.email == request.auth.token.email;
+      
+      // Only admins can read and delete
+      allow read, delete: if request.auth != null
+        && getUserRole(request.auth.uid) == 'admin';
+    }
+    
+    // Users Collection
+    match /users/{userId} {
+      // Users can read their own profile
+      allow read: if request.auth != null
+        && request.auth.uid == userId;
+      
+      // Users can create/update their own profile
+      allow create, update: if request.auth != null
+        && request.auth.uid == userId
+        && validateUser(request.resource.data);
+      
+      // Admins can read all users
+      allow read: if request.auth != null
+        && getUserRole(request.auth.uid) == 'admin';
+        
+      // Only admins can delete users
+      allow delete: if request.auth != null
+        && getUserRole(request.auth.uid) == 'admin';
+    }
+    
+    // Analytics Collection
+    match /analytics/{analyticsId} {
+      // Only create analytics events (no read/update/delete for privacy)
+      allow create: if true;
+      
+      // Only admins can read analytics
+      allow read: if request.auth != null
+        && getUserRole(request.auth.uid) == 'admin';
+    }
+    
+    // Site Settings Collection
+    match /siteSettings/{settingId} {
+      // Public read access
+      allow read: if true;
+      
+      // Only admins can update settings
+      allow update: if request.auth != null
+        && getUserRole(request.auth.uid) == 'admin';
+    }
+    
+    // Helper Functions
+    function getUserRole(uid) {
+      return get(/databases/$(database)/documents/users/$(uid)).data.role;
+    }
+    
+    function validateEmail(email) {
+      return email is string
+        && email.matches('.*@.*\\..*')
+        && email.size() < 255;
+    }
+    
+    function validateArticle(article) {
+      return article.keys().hasAll(['title', 'content', 'author', 'category', 'status'])
+        && article.title is string
+        && article.title.size() > 0
+        && article.title.size() < 200
+        && article.content is string
+        && article.content.size() > 0
+        && article.status in ['draft', 'published', 'archived']
+        && article.author.id == request.auth.uid;
+    }
+    
+    function validateClassified(classified) {
+      return classified.keys().hasAll(['title', 'description', 'price', 'category', 'location', 'contact', 'userId'])
+        && classified.title is string
+        && classified.title.size() > 0
+        && classified.title.size() < 200
+        && classified.description is string
+        && classified.description.size() > 0
+        && classified.price is number
+        && classified.price >= 0
+        && classified.userId == request.auth.uid
+        && classified.status in ['active', 'sold', 'expired', 'pending'];
+    }
+    
+    function validateUser(user) {
+      return user.keys().hasAll(['email', 'displayName', 'role'])
+        && user.email == request.auth.token.email
+        && user.displayName is string
+        && user.displayName.size() > 0
+        && user.displayName.size() < 100
+        && user.role in ['user', 'editor', 'admin'];
+    }
+  }
+}
