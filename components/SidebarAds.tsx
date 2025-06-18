@@ -2,90 +2,117 @@
 
 import { useState, useEffect } from 'react'
 import { ExternalLink, X } from 'lucide-react'
-
-interface SidebarAd {
-  id: string
-  title: string
-  description: string
-  imageUrl?: string
-  linkUrl: string
-  type: 'banner' | 'text' | 'video'
-  position: number
-  isSticky: boolean
-}
-
-// Mock data - w produkcji będzie pobierane z Firebase
-const mockSidebarAds: SidebarAd[] = [
-  {
-    id: "sidebar-1",
-    title: "Najlepszy Bank w Mieście",
-    description: "Załóż konto online i odbierz 200 zł premii. Bez ukrytych opłat!",
-    imageUrl: "https://images.unsplash.com/photo-1559526324-4b87b5e36e44?w=300&h=200&fit=crop",
-    linkUrl: "https://example-bank.com",
-    type: "banner",
-    position: 1,
-    isSticky: true
-  },
-  {
-    id: "sidebar-2", 
-    title: "Ubezpieczenia na Auto",
-    description: "Porównaj oferty 15 towarzystw ubezpieczeniowych. Znajdź najtańsze OC i AC.",
-    imageUrl: "https://images.unsplash.com/photo-1492144534655-ae79c964c9d7?w=300&h=150&fit=crop",
-    linkUrl: "https://example-insurance.com",
-    type: "banner",
-    position: 2,
-    isSticky: false
-  },
-  {
-    id: "sidebar-3",
-    title: "Promocja: Meble do Domu",
-    description: "Nowa kolekcja mebli w super cenach. Dostawa gratis!",
-    linkUrl: "https://example-furniture.com",
-    type: "text",
-    position: 3,
-    isSticky: false
-  },
-  {
-    id: "sidebar-4",
-    title: "Kursy Językowe Online",
-    description: "Naucz się języka w 30 dni. Pierwsza lekcja za darmo.",
-    imageUrl: "https://images.unsplash.com/photo-1434030216411-0b793f4b4173?w=300&h=150&fit=crop",
-    linkUrl: "https://example-language.com",
-    type: "banner",
-    position: 4,
-    isSticky: false
-  }
-]
+import { Advertisement } from '@/types'
+import { advertisementService } from '@/lib/firestore'
 
 export default function SidebarAds() {
-  const [ads, setAds] = useState<SidebarAd[]>([])
+  const [ads, setAds] = useState<Advertisement[]>([])
   const [closedAds, setClosedAds] = useState<string[]>([])
   const [loading, setLoading] = useState(true)
 
+  // Mock data as fallback
+  const mockSidebarAds: Advertisement[] = [
+    {
+      id: "sidebar-mock-1",
+      title: "Najlepszy Bank w Mieście",
+      description: "Załóż konto online i odbierz 200 zł premii. Bez ukrytych opłat!",
+      imageUrl: "https://images.unsplash.com/photo-1559526324-4b87b5e36e44?w=300&h=200&fit=crop",
+      linkUrl: "https://example-bank.com",
+      position: "sidebar",
+      type: "banner",
+      status: "active",
+      priority: 1,
+      startDate: new Date('2024-01-01'),
+      endDate: new Date('2024-12-31'),
+      clicks: 0,
+      impressions: 0,
+      createdAt: new Date(),
+      updatedAt: new Date()
+    },
+    {
+      id: "sidebar-mock-2", 
+      title: "Ubezpieczenia na Auto",
+      description: "Porównaj oferty 15 towarzystw ubezpieczeniowych. Znajdź najtańsze OC i AC.",
+      imageUrl: "https://images.unsplash.com/photo-1492144534655-ae79c964c9d7?w=300&h=150&fit=crop",
+      linkUrl: "https://example-insurance.com",
+      position: "sidebar",
+      type: "banner",
+      status: "active",
+      priority: 2,
+      startDate: new Date('2024-01-01'),
+      endDate: new Date('2024-12-31'),
+      clicks: 0,
+      impressions: 0,
+      createdAt: new Date(),
+      updatedAt: new Date()
+    },
+    {
+      id: "sidebar-mock-3",
+      title: "Promocja: Meble do Domu",
+      description: "Nowa kolekcja mebli w super cenach. Dostawa gratis!",
+      linkUrl: "https://example-furniture.com",
+      position: "sidebar",
+      type: "text",
+      status: "active",
+      priority: 3,
+      startDate: new Date('2024-01-01'),
+      endDate: new Date('2024-12-31'),
+      clicks: 0,
+      impressions: 0,
+      createdAt: new Date(),
+      updatedAt: new Date()
+    }
+  ]
+
   useEffect(() => {
     const fetchAds = async () => {
-      setLoading(true)
-      
-      // Filter out closed ads
-      const activeAds = mockSidebarAds.filter(ad => !closedAds.includes(ad.id))
-      
-      setTimeout(() => {
+      try {
+        setLoading(true)
+        
+        const firebaseAds = await advertisementService.getAdvertisements('sidebar')
+        
+        if (firebaseAds.length > 0) {
+          // Filter out closed ads
+          const activeAds = firebaseAds.filter(ad => !closedAds.includes(ad.id))
+          setAds(activeAds)
+          
+          // Track impressions for sidebar ads
+          firebaseAds.forEach(ad => {
+            advertisementService.trackImpression(ad.id).catch(err => {
+              console.error('Error tracking sidebar ad impression:', err)
+            })
+          })
+        } else {
+          // Use mock data as fallback
+          const activeAds = mockSidebarAds.filter(ad => !closedAds.includes(ad.id))
+          setAds(activeAds)
+        }
+      } catch (error) {
+        console.error('Error fetching sidebar ads:', error)
+        // Use mock data on error
+        const activeAds = mockSidebarAds.filter(ad => !closedAds.includes(ad.id))
         setAds(activeAds)
+      } finally {
         setLoading(false)
-      }, 300)
+      }
     }
 
     fetchAds()
   }, [closedAds])
 
-  const handleAdClick = (ad: SidebarAd) => {
-    // Track click for analytics
-    console.log('Sidebar ad clicked:', ad.title)
-    
-    // In real app, send analytics
-    // analytics.track('sidebar_ad_click', { adId: ad.id, adTitle: ad.title })
-    
-    window.open(ad.linkUrl, '_blank')
+  const handleAdClick = async (ad: Advertisement) => {
+    try {
+      // Track click for analytics
+      await advertisementService.trackClick(ad.id)
+      console.log('Sidebar ad clicked and tracked:', ad.title)
+      
+      // Open ad link
+      window.open(ad.linkUrl, '_blank')
+    } catch (error) {
+      console.error('Error tracking sidebar ad click:', error)
+      // Still open the link even if tracking fails
+      window.open(ad.linkUrl, '_blank')
+    }
   }
 
   const handleCloseAd = (adId: string) => {
@@ -112,7 +139,7 @@ export default function SidebarAds() {
         <div 
           key={ad.id}
           className={`bg-white rounded-lg shadow-md overflow-hidden hover:shadow-lg transition-shadow duration-300 group ${
-            ad.isSticky && index === 0 ? 'sticky top-20' : ''
+            index === 0 ? 'sticky top-20' : ''
           }`}
         >
           {/* Close Button */}
@@ -132,6 +159,10 @@ export default function SidebarAds() {
                   src={ad.imageUrl}
                   alt={ad.title}
                   className="w-full h-32 object-cover group-hover:scale-105 transition-transform duration-300"
+                  onError={(e) => {
+                    const target = e.target as HTMLImageElement
+                    target.src = 'https://images.unsplash.com/photo-1559526324-4b87b5e36e44?w=300&h=200&fit=crop'
+                  }}
                 />
                 <div className="absolute inset-0 bg-gradient-to-t from-black/50 to-transparent" />
                 
@@ -224,6 +255,22 @@ export default function SidebarAds() {
           </a>
         </div>
       </div>
+
+      {/* No ads available */}
+      {ads.length === 0 && !loading && (
+        <div className="bg-white rounded-lg shadow-md p-6 text-center">
+          <div className="text-gray-500 mb-4">📢 Brak reklam do wyświetlenia</div>
+          <p className="text-sm text-gray-400 mb-4">
+            To miejsce może być Twoje!
+          </p>
+          <a
+            href="/advertise"
+            className="bg-primary-600 text-white px-4 py-2 rounded-lg hover:bg-primary-700 transition-colors"
+          >
+            Reklamuj się tutaj
+          </a>
+        </div>
+      )}
     </div>
   )
 }
