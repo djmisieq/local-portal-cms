@@ -3,6 +3,7 @@
 import { useState } from 'react'
 import { Mail, CheckCircle, AlertCircle } from 'lucide-react'
 import toast from 'react-hot-toast'
+import { newsletterService } from '@/lib/firestore'
 
 export default function Newsletter() {
   const [email, setEmail] = useState('')
@@ -25,20 +26,26 @@ export default function Newsletter() {
     setIsLoading(true)
 
     try {
-      // In real app: await subscribeToNewsletter(email)
-      // Simulate API call
-      await new Promise(resolve => setTimeout(resolve, 1000))
-      
-      // Mock success
-      console.log('Newsletter subscription for:', email)
+      await newsletterService.subscribe(email, {
+        categories: [],
+        frequency: 'weekly'
+      })
       
       setIsSubscribed(true)
       setEmail('')
       toast.success('Dziękujemy za subskrypcję!')
       
-    } catch (error) {
-      toast.error('Wystąpił błąd podczas subskrypcji')
+      // Track newsletter signup for analytics
+      console.log('Newsletter subscription successful:', email)
+      
+    } catch (error: any) {
       console.error('Newsletter subscription error:', error)
+      
+      if (error.message.includes('już jest zapisany')) {
+        toast.error('Ten email jest już zapisany do newslettera')
+      } else {
+        toast.error('Wystąpił błąd podczas subskrypcji')
+      }
     } finally {
       setIsLoading(false)
     }
