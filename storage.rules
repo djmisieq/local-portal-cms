@@ -1,0 +1,69 @@
+rules_version = '2';
+service firebase.storage {
+  match /b/{bucket}/o {
+    
+    // User profile images
+    match /users/{userId}/avatar/{fileName} {
+      // Users can read any avatar
+      allow read: if true;
+      
+      // Users can upload/update their own avatar
+      allow write: if request.auth != null
+        && request.auth.uid == userId
+        && isValidImage(resource, request.resource);
+    }
+    
+    // Article images
+    match /articles/{articleId}/{fileName} {
+      // Public read access
+      allow read: if true;
+      
+      // Authenticated users can upload article images
+      allow write: if request.auth != null
+        && isValidImage(resource, request.resource);
+    }
+    
+    // Classified images
+    match /classifieds/{classifiedId}/{fileName} {
+      // Public read access
+      allow read: if true;
+      
+      // Authenticated users can upload classified images
+      allow write: if request.auth != null
+        && isValidImage(resource, request.resource);
+    }
+    
+    // Advertisement images
+    match /advertisements/{adId}/{fileName} {
+      // Public read access
+      allow read: if true;
+      
+      // Only admins can upload advertisement images
+      allow write: if request.auth != null
+        && getUserRole(request.auth.uid) == 'admin'
+        && isValidImage(resource, request.resource);
+    }
+    
+    // Site assets (logos, etc.)
+    match /site/{fileName} {
+      // Public read access
+      allow read: if true;
+      
+      // Only admins can upload site assets
+      allow write: if request.auth != null
+        && getUserRole(request.auth.uid) == 'admin'
+        && isValidImage(resource, request.resource);
+    }
+    
+    // Helper functions
+    function getUserRole(uid) {
+      return firestore.get(/databases/(default)/documents/users/$(uid)).data.role;
+    }
+    
+    function isValidImage(oldResource, newResource) {
+      return newResource.size < 5 * 1024 * 1024 // 5MB limit
+        && newResource.contentType.matches('image/.*')
+        && newResource.contentType in ['image/jpeg', 'image/png', 'image/webp', 'image/gif'];
+    }
+  }
+}
